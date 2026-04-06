@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Дзыньк</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #000; color: #fff; }
+
+#lobby {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 24px; padding: 24px;
+  background: linear-gradient(160deg, #0a0a1a 0%, #1a1030 100%);
+}
+#lobby h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.5px; }
+#lobby .actions { display: flex; gap: 10px; width: 100%; max-width: 340px; }
+#lobby input {
+  flex: 1; padding: 14px 16px; border-radius: 12px; border: 1px solid #333;
+  background: rgba(255,255,255,0.08); color: #fff; font-size: 16px; outline: none;
+}
+#lobby input:focus { border-color: #6366f1; }
+.btn {
+  padding: 14px 24px; border-radius: 12px; border: none; font-size: 16px;
+  cursor: pointer; font-weight: 600; transition: transform 0.1s, opacity 0.2s;
+}
+.btn:active { transform: scale(0.95); }
+.btn-primary { background: #6366f1; color: #fff; }
+.btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+.btn-full { width: 100%; max-width: 340px; }
+#status { color: #888; font-size: 0.85rem; text-align: center; }
+.share-box {
+  width: 100%; max-width: 340px; display: none; flex-direction: column; gap: 10px;
+}
+.share-box.visible { display: flex; }
+.share-link {
+  padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,0.08);
+  border: 1px solid #333; font-size: 14px; color: #aaa; text-align: center;
+  word-break: break-all; line-height: 1.4;
+}
+.share-buttons { display: flex; gap: 10px; }
+.share-buttons .btn { flex: 1; }
+
+/* Call screen */
+#call { display: none; height: 100%; position: relative; }
+
+.video-container {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #000;
+}
+#remoteVideo {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.no-remote {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; color: #555; pointer-events: none;
+}
+#localVideo {
+  position: absolute; top: calc(env(safe-area-inset-top, 12px) + 12px); right: 12px;
+  width: 110px; height: 150px; border-radius: 16px;
+  object-fit: cover; z-index: 5;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  border: 2px solid rgba(255,255,255,0.15);
+}
+#localVideo.dragging { transition: none; }
+
+/* Top bar */
+.top-bar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+  padding: calc(env(safe-area-inset-top, 12px) + 8px) 16px 8px;
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+}
+.call-timer { font-size: 0.9rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.copy-bar {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 15;
+  display: none; flex-direction: column; align-items: center; gap: 16px; width: 90%; max-width: 340px;
+}
+.copy-bar.visible { display: flex; }
+.copy-bar .link-text {
+  padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2); color: #ccc; font-size: 14px;
+  text-align: center; word-break: break-all; width: 100%;
+}
+.copy-bar .copy-btn {
+  width: 100%; padding: 18px; border-radius: 14px; border: none;
+  background: #6366f1; color: #fff; font-size: 18px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+.copy-bar .copy-btn:active { transform: scale(0.97); background: #4f46e5; }
+.copy-bar .share-btn {
+  width: 100%; padding: 16px; border-radius: 14px; border: none;
+  background: rgba(255,255,255,0.12); color: #fff; font-size: 16px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+
+/* Bottom controls */
+.controls {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+  padding: 20px 16px calc(env(safe-area-inset-bottom, 16px) + 16px);
+  display: flex; justify-content: center; gap: 16px;
+  background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);
+}
+.ctrl-btn {
+  width: 56px; height: 56px; border-radius: 50%; border: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; cursor: pointer; transition: transform 0.1s, background 0.2s;
+  background: rgba(255,255,255,0.15); color: #fff;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.ctrl-btn:active { transform: scale(0.9); }
+.ctrl-btn.off { background: rgba(255,255,255,0.9); color: #000; }
+.ctrl-btn.hangup { background: #ef4444; width: 64px; height: 64px; font-size: 1.5rem; }
+
+/* Chat overlay — half screen like TG */
+.chat-overlay {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
+  height: 55%; max-height: 55%;
+  background: rgba(0,0,0,0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  display: flex; flex-direction: column;
+  border-top-left-radius: 16px; border-top-right-radius: 16px;
+  transform: translateY(100%); transition: transform 0.3s ease;
+}
+.chat-overlay.open { transform: translateY(0); }
+.chat-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: calc(env(safe-area-inset-top, 12px) + 12px) 16px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  font-weight: 600; font-size: 1.1rem;
+}
+.chat-close { background: none; border: none; color: #fff; font-size: 1.5rem; padding: 4px 8px; cursor: pointer; }
+.messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; -webkit-overflow-scrolling: touch; }
+.msg {
+  padding: 10px 14px; border-radius: 16px; font-size: 0.95rem;
+  max-width: 80%; word-break: break-word; line-height: 1.4;
+}
+.msg.theirs { background: rgba(255,255,255,0.12); align-self: flex-start; border-bottom-left-radius: 4px; }
+.msg.mine { background: #6366f1; align-self: flex-end; border-bottom-right-radius: 4px; }
+.msg.system { background: none; color: #555; font-size: 0.8rem; text-align: center; align-self: center; max-width: 100%; }
+.chat-input-bar {
+  display: flex; gap: 10px;
+  padding: 12px 16px calc(env(safe-area-inset-bottom, 12px) + 12px);
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.chat-input-bar input {
+  flex: 1; padding: 12px 16px; border-radius: 20px; border: none;
+  background: rgba(255,255,255,0.1); color: #fff; font-size: 16px; outline: none;
+}
+.chat-input-bar button {
+  width: 44px; height: 44px; border-radius: 50%; border: none;
+  background: #6366f1; color: #fff; font-size: 1.1rem; cursor: pointer;
+}
+
+/* Notification badge */
+.badge {
+  position: absolute; top: -4px; right: -4px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #ef4444; font-size: 0.65rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.badge.hidden { display: none; }
+.ctrl-btn { position: relative; }
+
+/* In-app browser warning */
+#inAppWarning {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: linear-gradient(160deg, #0a0a1a 0%, #1a1030 100%);
+  flex-direction: column; align-items: center; justify-content: center;
+  padding: 32px; gap: 24px; text-align: center;
+}
+#inAppWarning.visible { display: flex; }
+#inAppWarning h2 { font-size: 1.5rem; font-weight: 700; }
+#inAppWarning p { color: #aaa; font-size: 1rem; line-height: 1.5; max-width: 320px; }
+#inAppWarning .steps { text-align: left; color: #ccc; font-size: 0.95rem; line-height: 2; max-width: 320px; }
+#inAppWarning .open-btn {
+  padding: 16px 32px; border-radius: 14px; border: none;
+  background: #6366f1; color: #fff; font-size: 18px; font-weight: 700; cursor: pointer;
+  width: 100%; max-width: 320px;
+}
+</style>
+</head>
+<body>
+
+<div id="inAppWarning">
+  <h2>Откройте в браузере</h2>
+  <p>Для видеозвонков нужен полноценный браузер</p>
+  <div class="steps" id="inAppSteps"></div>
+  <button class="open-btn" id="openInBrowser" onclick="openExternal()">Открыть в Safari</button>
+</div>
+
+<div id="lobby">
+  <h1>Дзыньк</h1>
+  <div class="actions">
+    <input id="roomInput" placeholder="Код комнаты" />
+    <button class="btn btn-primary" onclick="joinRoom()">Войти</button>
+  </div>
+  <button class="btn btn-primary btn-full" onclick="createRoom()">Создать комнату</button>
+  <div id="status"></div>
+  <div class="share-box" id="shareBox">
+    <div class="share-link" id="shareLink"></div>
+    <div class="share-buttons">
+      <button class="btn btn-primary" onclick="copyLink()">Копировать</button>
+      <button class="btn btn-secondary" id="btnShare" onclick="shareLink()">Поделиться</button>
+    </div>
+  </div>
+</div>
+
+<div id="call">
+  <div class="top-bar">
+    <span class="call-timer" id="timer">00:00</span>
+  </div>
+
+  <div class="video-container">
+    <video id="remoteVideo" autoplay playsinline></video>
+    <div class="no-remote" id="noRemote">Ожидание собеседника...</div>
+  </div>
+
+  <div class="copy-bar" id="copyBar">
+    <div class="link-text" id="callLink"></div>
+    <button class="copy-btn" onclick="copyCallLink()">📋 Копировать ссылку</button>
+    <button class="share-btn" id="callShareBtn" onclick="shareCallLink()">📤 Поделиться</button>
+  </div>
+  <video id="localVideo" autoplay playsinline muted></video>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btnMic" onclick="toggleMic()">🎤</button>
+    <button class="ctrl-btn" id="btnCam" onclick="toggleCam()">📷</button>
+    <button class="ctrl-btn" id="btnFlip" onclick="flipCamera()">🔄</button>
+    <button class="ctrl-btn" id="btnChat" onclick="toggleChat()">💬<span class="badge hidden" id="chatBadge">0</span></button>
+    <button class="ctrl-btn hangup" onclick="hangup()">✖</button>
+  </div>
+
+  <div class="chat-overlay" id="chatPanel">
+    <div class="chat-header">
+      <span>Чат</span>
+      <button class="chat-close" onclick="toggleChat()">✕</button>
+    </div>
+    <div class="messages" id="messages"></div>
+    <div class="chat-input-bar">
+      <input id="chatInput" placeholder="Сообщение..." onkeydown="if(event.key==='Enter')sendChat()" />
+      <button onclick="sendChat()">↑</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let ws, pc, localStream, room;
+let micOn = true, camOn = true, chatOpen = false;
+let timerInterval, callStart;
+let unreadCount = 0;
+let usingFront = true;
+
+const config = {
+  iceServers: [
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    { urls: 'turn:global.relay.metered.ca:80', username: 'e8dd65b92a13d3691451', credential: '1VYqnGLn/JMblk/Q' },
+    { urls: 'turn:global.relay.metered.ca:443', username: 'e8dd65b92a13d3691451', credential: '1VYqnGLn/JMblk/Q' },
+    { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: 'e8dd65b92a13d3691451', credential: '1VYqnGLn/JMblk/Q' }
+  ]
+};
+
+function genId() { return Math.random().toString(36).substring(2, 8); }
+
+function createRoom() {
+  room = genId();
+  history.pushState(null, '', '/' + room);
+  startCall();
+}
+
+function joinRoom() {
+  room = document.getElementById('roomInput').value.trim();
+  if (!room) return;
+  history.pushState(null, '', '/' + room);
+  startCall();
+}
+
+(function() {
+  const path = location.pathname.slice(1);
+  if (path) { room = path; window.addEventListener('DOMContentLoaded', startCall); }
+})();
+
+async function startCall() {
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('call').style.display = 'block';
+
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: { echoCancellation: true, noiseSuppression: true }
+    });
+  } catch {
+    try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { return; }
+  }
+  document.getElementById('localVideo').srcObject = localStream;
+
+  callStart = Date.now();
+  timerInterval = setInterval(updateTimer, 1000);
+
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}?room=${room}`);
+
+  ws.onmessage = async (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'waiting') {
+      addSystemMsg('Отправьте ссылку собеседнику');
+      document.getElementById('callLink').textContent = location.href;
+      document.getElementById('copyBar').classList.add('visible');
+      if (!navigator.share) document.getElementById('callShareBtn').style.display = 'none';
+      document.getElementById('shareLink').textContent = location.href;
+      document.getElementById('shareBox').classList.add('visible');
+      if (!navigator.share) document.getElementById('btnShare').style.display = 'none';
+    } else if (msg.type === 'ready') {
+      document.getElementById('copyBar').classList.remove('visible');
+      createPeer(msg.initiator);
+    } else if (msg.type === 'full') {
+      addSystemMsg('Комната занята');
+    } else if (msg.type === 'peer-left') {
+      addSystemMsg('Собеседник вышел');
+      if (pc) { pc.close(); pc = null; }
+      document.getElementById('remoteVideo').srcObject = null;
+      document.getElementById('noRemote').textContent = 'Собеседник вышел';
+      document.getElementById('noRemote').style.display = 'flex';
+    } else if (msg.type === 'offer') {
+      if (!pc) createPeer(false);
+      await pc.setRemoteDescription(msg);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(JSON.stringify(pc.localDescription));
+    } else if (msg.type === 'answer') {
+      await pc.setRemoteDescription(msg);
+    } else if (msg.type === 'candidate') {
+      if (pc) await pc.addIceCandidate(msg.candidate);
+    } else if (msg.type === 'chat') {
+      addMsg(msg.text, false);
+      if (!chatOpen) {
+        unreadCount++;
+        const badge = document.getElementById('chatBadge');
+        badge.textContent = unreadCount;
+        badge.classList.remove('hidden');
+      }
+    }
+  };
+}
+
+function createPeer(initiator) {
+  pc = new RTCPeerConnection(config);
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate) ws.send(JSON.stringify({ type: 'candidate', candidate: e.candidate }));
+  };
+
+  pc.ontrack = (e) => {
+    document.getElementById('remoteVideo').srcObject = e.streams[0];
+    document.getElementById('noRemote').style.display = 'none';
+  };
+
+  if (initiator) {
+    pc.createOffer().then(offer => {
+      pc.setLocalDescription(offer);
+      ws.send(JSON.stringify(offer));
+    });
+  }
+}
+
+function updateTimer() {
+  const s = Math.floor((Date.now() - callStart) / 1000);
+  const m = Math.floor(s / 60);
+  document.getElementById('timer').textContent =
+    String(m).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+
+function toggleMic() {
+  micOn = !micOn;
+  localStream.getAudioTracks().forEach(t => t.enabled = micOn);
+  document.getElementById('btnMic').classList.toggle('off', !micOn);
+}
+
+function toggleCam() {
+  camOn = !camOn;
+  localStream.getVideoTracks().forEach(t => t.enabled = camOn);
+  document.getElementById('btnCam').classList.toggle('off', !camOn);
+}
+
+function toggleChat() {
+  chatOpen = !chatOpen;
+  document.getElementById('chatPanel').classList.toggle('open', chatOpen);
+  if (chatOpen) {
+    unreadCount = 0;
+    document.getElementById('chatBadge').classList.add('hidden');
+    document.getElementById('chatInput').focus();
+  }
+}
+
+async function flipCamera() {
+  if (!localStream) return;
+  usingFront = !usingFront;
+  const old = localStream.getVideoTracks()[0];
+  if (old) old.stop();
+  try {
+    const ns = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: usingFront ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    const track = ns.getVideoTracks()[0];
+    localStream.removeTrack(old);
+    localStream.addTrack(track);
+    document.getElementById('localVideo').srcObject = localStream;
+    if (pc) {
+      const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+      if (sender) sender.replaceTrack(track);
+    }
+  } catch {}
+}
+
+function copyCallLink() {
+  navigator.clipboard.writeText(location.href).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✅ Скопировано!';
+    setTimeout(() => { btn.innerHTML = '📋 Копировать ссылку'; }, 2000);
+  });
+}
+
+function shareCallLink() {
+  navigator.share({ title: 'Дзыньк', text: 'Присоединяйся к звонку', url: location.href }).catch(() => {});
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(location.href).then(() => {
+    const btn = document.querySelector('.share-buttons .btn-primary');
+    btn.textContent = 'Скопировано!';
+    setTimeout(() => { btn.textContent = 'Копировать'; }, 2000);
+  });
+}
+
+function shareLink() {
+  navigator.share({ title: 'Дзыньк', text: 'Присоединяйся к звонку', url: location.href }).catch(() => {});
+}
+
+function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text || !ws) return;
+  ws.send(JSON.stringify({ type: 'chat', text }));
+  addMsg(text, true);
+  input.value = '';
+}
+
+function addMsg(text, mine) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + (mine ? 'mine' : 'theirs');
+  el.textContent = text;
+  document.getElementById('messages').appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth' });
+}
+
+function addSystemMsg(text) {
+  const el = document.createElement('div');
+  el.className = 'msg system';
+  el.textContent = text;
+  document.getElementById('messages').appendChild(el);
+}
+
+function hangup() {
+  if (pc) { pc.close(); pc = null; }
+  if (ws) ws.close();
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  clearInterval(timerInterval);
+  document.getElementById('call').style.display = 'none';
+  document.getElementById('lobby').style.display = 'flex';
+  document.getElementById('shareBox').classList.remove('visible');
+  document.getElementById('copyBar').classList.remove('visible');
+  document.getElementById('noRemote').style.display = 'flex';
+  document.getElementById('noRemote').textContent = 'Ожидание собеседника...';
+  history.pushState(null, '', '/');
+}
+
+// Draggable local video (mobile)
+(function() {
+  const v = document.getElementById('localVideo');
+  let sx, sy, ox, oy;
+  v.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    const r = v.getBoundingClientRect();
+    sx = t.clientX - r.left; sy = t.clientY - r.top;
+    v.classList.add('dragging');
+  }, { passive: true });
+  v.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    let x = t.clientX - sx, y = t.clientY - sy;
+    x = Math.max(0, Math.min(window.innerWidth - v.offsetWidth, x));
+    y = Math.max(0, Math.min(window.innerHeight - v.offsetHeight, y));
+    v.style.left = x + 'px'; v.style.top = y + 'px';
+    v.style.right = 'auto';
+  }, { passive: true });
+  v.addEventListener('touchend', () => v.classList.remove('dragging'));
+})();
+
+// In-app browser detection
+(function() {
+  const ua = navigator.userAgent || '';
+  const inApp = /FBAN|FBAV|Instagram|Telegram|TelegramBot|WhatsApp|Line|Snapchat|Twitter|MicroMessenger|GSA/i.test(ua)
+    || (ua.includes('Mobile') && !ua.includes('Safari') && ua.includes('AppleWebKit'));
+  if (inApp) {
+    document.getElementById('inAppWarning').classList.add('visible');
+    const ios = /iPhone|iPad|iPod/i.test(ua);
+    const steps = document.getElementById('inAppSteps');
+    if (ios) {
+      steps.innerHTML = '1. Нажмите <b>⋯</b> или <b>⬆️</b> (вверху справа)<br>2. Выберите <b>«Открыть в Safari»</b>';
+    } else {
+      steps.innerHTML = '1. Нажмите <b>⋮</b> (меню, три точки)<br>2. Выберите <b>«Открыть в браузере»</b>';
+      document.getElementById('openInBrowser').textContent = 'Открыть в Chrome';
+    }
+  }
+})();
+
+function openExternal() {
+  window.open(location.href, '_system') || window.open(location.href, '_blank');
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+</script>
+</body>
+</html>
