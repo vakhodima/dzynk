@@ -306,7 +306,7 @@ async function startCall() {
   timerInterval = setInterval(updateTimer, 1000);
 
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${proto}//${location.host}?room=${room}`);
+  ws = new WebSocket(`${proto}//${location.host}/ws?room=${room}`);
 
   ws.onmessage = async (e) => {
     const msg = JSON.parse(e.data);
